@@ -1,0 +1,131 @@
+---
+title: "Week 10 Notes: Mapping in R"
+author: "Julea Shaw"
+date: "3/13/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#libraries we want for spatial mapping
+library(sf)
+library(maps)
+library(rgdal)
+library(maptools)
+library(mapview)
+library(leaflet)
+library(tidyverse)
+#Installing the development version of ggplot2 with additional features that have not been released yet (need it for geom_sf )
+#install.packages("devtools")
+library(devtools)
+devtools::install_github("tidyverse/ggplot2")
+
+```
+
+####Projections and Coordinate Reference Systems (CRS)
+
+Often difficult part of workign with spatial data
+
+GCS = geographic coordinate systems 
+based on spherical earth models 
+
+PCS = projected coordinate system
+Takes sphere and maps it onto a flat surface
+Certain projections are better depending on where you are on the earth
+(middle is most accurate, edges stretched)
+
+
+
+####Point data
+sf is mainly for vector based data (poly-lines, polygons, point data)
+
+moving away from rgdal because sf is easier to work with
+
+sf vignettes to help you learn to use
+
+
+st_read to read in data
+brings in everything as a dataframe and the geometry is its own geometry in a list
+
+```{r}
+
+df_locs<- read_csv("https://raw.githubusercontent.com/ryanpeek/mapping_in_R/master/data/hotsprings_CA.csv")
+
+
+#Need to add headers to columns
+
+df_locs <-df_locs %>% 
+  set_names(nm = c("State", "Lat", "Lon", "Spring_name", "Temp_C", "Temp_F", "Area", "USGS_Quad"))
+
+glimpse(df_locs)
+
+#Longitude should be negative
+
+df_locs <- df_locs %>% 
+  mutate("Lon" = -Lon)
+
+#Make temperature numberic
+
+df_locs <- df_locs %>% 
+  mutate_at(.vars = c("Temp_C", "Temp_F"), .funs = as.numeric) 
+
+# make it spatial
+
+df_locs_sf <- st_as_sf(df_locs, 
+                       coords = c("Lon", "Lat"),# or = c(3,2) col numbers
+                      remove = F,
+                      crs = 4326) #coordinate reference system (numbers for each projection), This is a WGS84 GCS  
+```
+####Making a map
+```{r}
+library(mapview)
+mapview(df_locs_sf)
+
+#Crop to points in Tulare county
+#install.packages("USAboundaries")
+library(USAboundaries)
+
+#us_boundaries, us_cities, us_counties, us_states
+
+tulare <- us_counties(resolution = "low", states = "CA") %>% 
+  filter(name == "Tulare")
+
+mapview(tulare) + mapview(df_locs_sf) #layers like ggplot2
+
+
+```
+###intersect the hotsprings with Tulare Co
+
+```{r}
+tuls_hs <- st_intersection(df_locs_sf, tulare)
+mapview(tuls_hs)
+```
+####ggmap backgrounds
+
+#Making a static map
+```{r}
+#install.packages("ggmap")
+library(ggmap)
+library(viridis)
+
+map1 <- get_map(location = c(-118.302, 36.22),#x = lon, #y = lat
+               color = "bw", 
+               maptype = "terrain",
+               source = "google",
+               zoom = 8)
+
+ggmap(map1)+
+  geom_sf(data = tuls_hs, aes(color = Temp_F), size = 3, shape = 16, inherit.aes = FALSE)+
+  scale_color_viridis(option = "inferno")
+  
+```
+
+
+####Bay Carbon Concentrations
+
+```{r}
+#install.packages("naniar")
+```
+
+
+
